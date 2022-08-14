@@ -1,4 +1,6 @@
 import requests
+import csv
+import os.path
 
 
 class NaharTime:
@@ -23,6 +25,58 @@ class NaharTime:
         self.chosen_foods = dict()
         self.get_food_day_url = api_url + "company/menu?dayId="
         self.submit_foods_url = api_url + "invoice/submit"
+        self.food_history_url = api_url + "user/GetUserInvoicesMonth?month="
+        self.file_name = "foods.csv"
+        self.food_ids = list()
+        if os.path.isfile(self.file_name):
+            with open(self.file_name, "r", encoding="UTF8") as file:
+                reader = csv.reader(file)
+                for row in reader:
+                    self.food_ids.append(row[0])
+        else:
+            with open(self.file_name, "w", encoding="UTF8") as file:
+                writer = csv.writer(file)
+                writer.writerow(["id", "name", "price", "restaurant", "image"])
+
+    def update_food_list(self):
+        new_foods = list()
+        for ID in self.day_ids:
+            get_food_day_url = self.get_food_day_url + str(ID)
+            get_food_day_response = requests.get(url=get_food_day_url, headers=self.headers).json()
+            for category in get_food_day_response:
+                for food in category.get("foodItemViewModels"):
+                    if food.get("foodItemId") not in self.food_ids:
+                        self.food_ids.append(food.get("foodItemId"))
+                        new_foods.append(
+                            [food.get("foodItemId"),
+                             food.get("foodItemName"),
+                             food.get("foodItemDiscountedPrice"),
+                             food.get("restaurantName"),
+                             food.get("foodItemImage")]
+                        )
+        with open(self.file_name, "w", encoding="UTF8") as file:
+            writer = csv.writer(file)
+            for new_food in new_foods:
+                writer.writerow(new_food)
+
+    def get_history(self, month_num: int, year: int):
+        # needs attention
+        food_names = list()
+        food_restaurants = list()
+        for i in range(6):
+            if month_num - i > 0:
+                food_history_url = self.food_history_url + str(month_num - i) + "&year=" + str(year)
+                days = requests.get(url=food_history_url, headers=self.headers).json()
+                for day in days:
+                    for item in day.get("foodItems"):
+                        food_names.append(item.get("foodItemName"))
+                        food_restaurants.append(item.get("restaurantName"))
+        food_ids_counter = dict()
+        for food_id in food_names:
+            food_ids_counter[food_id] = food_ids_counter[food_id] + 1 if food_id in food_ids_counter else 1
+        popular_foods = sorted(food_ids_counter, key=food_ids_counter.get, reverse=True)
+        print(food_ids_counter)
+        print(popular_foods)
 
     def get_foods(self):
         for ID in self.day_ids:
@@ -50,7 +104,9 @@ class NaharTime:
             print(response)
 
 
-nahar_time = NaharTime(favourite_food_ids=[17571, 18400, 17576, 17401, 17782], username="09123456789",
+nahar_time = NaharTime(favourite_food_ids=[17571, 18400, 17576, 17401, 17782], username="09113485808",
                        password="123456")
 nahar_time.get_foods()
 nahar_time.choose_foods()
+nahar_time.update_food_list()
+# nahar_time.get_history(month_num=4, year=1401)
